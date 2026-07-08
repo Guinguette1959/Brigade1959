@@ -21,6 +21,20 @@ function formatDateFr(dateString) {
   return new Date(dateString).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+
+function datesOfWeek(weekStart) {
+  const base = new Date(weekStart);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    return d.toISOString().slice(0, 10);
+  });
+}
+
+function shortDay(dateString) {
+  return new Date(dateString).toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+}
+
 function isRealProductName(name) {
   const n = String(name || '').trim();
   const low = n.toLowerCase();
@@ -52,6 +66,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('Chargement...');
   const [selectedWeekStart, setSelectedWeekStart] = useState(mondayOfWeek());
+  const [selectedDeliveryDate, setSelectedDeliveryDate] = useState(mondayOfWeek());
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
   const [period, setPeriod] = useState(null);
@@ -93,7 +108,7 @@ function App() {
     }
   }
 
-  async function loadAll(weekStart = selectedWeekStart) {
+  async function loadAll(weekStart = selectedWeekStart, deliveryDate = selectedDeliveryDate) {
     setLoading(true);
     setMessage('Chargement...');
     await ensureSeed();
@@ -114,10 +129,10 @@ function App() {
       currentPeriod = created.data;
     }
 
-    const itemsRes = await supabase.from('supply_items').select('*').eq('period_id', currentPeriod.id);
+    const itemsRes = await supabase.from('supply_items').select('*').eq('period_id', currentPeriod.id).eq('delivery_date', deliveryDate);
     if (itemsRes.error) throw itemsRes.error;
 
-    const statusesRes = await supabase.from('supplier_order_statuses').select('*').eq('period_id', currentPeriod.id);
+    const statusesRes = await supabase.from('supplier_order_statuses').select('*').eq('period_id', currentPeriod.id).eq('delivery_date', deliveryDate);
     if (statusesRes.error) throw statusesRes.error;
 
     const prevPeriods = await supabase.from('supply_periods').select('*').lt('period_start', currentPeriod.period_start).order('period_start', { ascending:false }).limit(4);
@@ -150,12 +165,21 @@ function App() {
   }
 
   useEffect(() => {
-    loadAll(selectedWeekStart).catch(error => {
+    setSelectedDeliveryDate(selectedWeekStart);
+    loadAll(selectedWeekStart, selectedWeekStart).catch(error => {
       console.error(error);
       setMessage('Erreur : ' + error.message);
       setLoading(false);
     });
   }, [selectedWeekStart]);
+
+  useEffect(() => {
+    if (!period) return;
+    loadOrderDataForDelivery(selectedDeliveryDate).catch(error => {
+      console.error(error);
+      setMessage('Erreur livraison : ' + error.message);
+    });
+  }, [selectedDeliveryDate]);
 
   useEffect(() => {
     const onScroll = () => setCompactHeader(window.scrollY > 120);
@@ -201,27 +225,40 @@ function App() {
     };
   }
 
+
+  async function loadOrderDataForDelivery(deliveryDate) {
+    if (!period) return;
+    const itemsRes = await supabase.from('supply_items').select('*').eq('period_id', period.id).eq('delivery_date', deliveryDate);
+    if (itemsRes.error) throw itemsRes.error;
+    const statusesRes = await supabase.from('supplier_order_statuses').select('*').eq('period_id', period.id).eq('delivery_date', deliveryDate);
+    if (statusesRes.error) throw statusesRes.error;
+    setItems(Object.fromEntries((itemsRes.data || []).map(i => [i.product_id, i])));
+    setStatuses(Object.fromEntries((statusesRes.data || []).map(s => [s.supplier_id, s])));
+    setMessage('Livraison chargée : ' + formatDateFr(deliveryDate));
+  }
+
   async function saveItem(productId, patch) {
-    const existing = items[productId] || { period_id: period.id, product_id: productId };
+    const existing = items[productId] || { period_id: period.id, product_id: productId, delivery_date: selectedDeliveryDate };
     const updated = { ...existing, ...patch, updated_at: new Date().toISOString() };
     setItems(prev => ({ ...prev, [productId]: updated }));
 
     const payload = {
       period_id: period.id,
       product_id: productId,
+      delivery_date: selectedDeliveryDate,
       stock_current: updated.stock_current === '' ? null : updated.stock_current,
       quantity_ordered: updated.quantity_ordered === '' ? null : updated.quantity_ordered,
       note: updated.note || null,
       inventory_checked: !!updated.inventory_checked,
       updated_at: updated.updated_at
     };
-    const res = await supabase.from('supply_items').upsert(payload, { onConflict:'period_id,product_id' });
+    const res = await supabase.from('supply_items').upsert(payload, { onConflict:'period_id,product_id,delivery_date' });
     if (res.error) setMessage('Erreur sauvegarde : ' + res.error.message);
     else setMessage('Sauvegardé');
   }
 
   async function saveStatus(supplierId, patch) {
-    const existing = statuses[supplierId] || { period_id: period.id, supplier_id: supplierId };
+    const existing = statuses[supplierId] || { period_id: period.id, supplier_id: supplierId, delivery_date: selectedDeliveryDate };
     const now = new Date().toISOString();
     const updated = { ...existing, ...patch, updated_at: now };
     if ('prepared' in patch && patch.prepared) updated.prepared_at = now;
@@ -231,6 +268,7 @@ function App() {
     const res = await supabase.from('supplier_order_statuses').upsert({
       period_id: period.id,
       supplier_id: supplierId,
+      delivery_date: selectedDeliveryDate,
       prepared: !!updated.prepared,
       passed: !!updated.passed,
       prepared_at: updated.prepared_at || null,
@@ -238,7 +276,7 @@ function App() {
       passed_mode: updated.passed_mode || null,
       note: updated.note || null,
       updated_at: now
-    }, { onConflict:'period_id,supplier_id' });
+    }, { onConflict:'period_id,supplier_id,delivery_date' });
     if (res.error) setMessage('Erreur statut : ' + res.error.message);
     else setMessage('Statut sauvegardé');
   }
@@ -317,7 +355,7 @@ function App() {
 
   async function resetInventoryChecks() {
     if (!confirm('Décocher tous les produits vérifiés de cette semaine ?')) return;
-    const res = await supabase.from('supply_items').update({ inventory_checked:false }).eq('period_id', period.id);
+    const res = await supabase.from('supply_items').update({ inventory_checked:false }).eq('period_id', period.id).eq('delivery_date', selectedDeliveryDate);
     if (res.error) return setMessage('Erreur : ' + res.error.message);
     setItems(prev => {
       const copy = { ...prev };
@@ -373,11 +411,11 @@ function App() {
         <div className="top-left">
           <button className="back-btn" disabled={!previousView} onClick={goBack}><ArrowLeft size={18}/>Retour</button>
           <div>
-            <h1>Brigade 1959 <span className="version-pill">V4.3</span></h1>
+            <h1>Brigade 1959 <span className="version-pill">V4.4</span></h1>
             <p>{message}</p>
           </div>
         </div>
-        <button className="secondary small" onClick={() => loadAll(selectedWeekStart)}><RefreshCcw size={16}/>Actualiser</button>
+        <button className="secondary small" onClick={() => loadAll(selectedWeekStart, selectedDeliveryDate)}><RefreshCcw size={16}/>Actualiser</button>
       </header>
 
       <nav className="nav">
@@ -392,6 +430,8 @@ function App() {
         {view === 'today' && (
           <TodayView
             selectedWeekStart={selectedWeekStart}
+            selectedDeliveryDate={selectedDeliveryDate}
+            setSelectedDeliveryDate={setSelectedDeliveryDate}
             moveWeek={moveWeek}
             goCurrentWeek={goCurrentWeek}
             totals={totals}
@@ -422,6 +462,9 @@ function App() {
             saveItem={saveItem}
             resetInventoryChecks={resetInventoryChecks}
             compactHeader={compactHeader}
+            selectedWeekStart={selectedWeekStart}
+            selectedDeliveryDate={selectedDeliveryDate}
+            setSelectedDeliveryDate={setSelectedDeliveryDate}
           />
         )}
 
@@ -446,6 +489,9 @@ function App() {
             resetSupplierOrder={resetSupplierOrder}
             period={period}
             compactHeader={compactHeader}
+            selectedWeekStart={selectedWeekStart}
+            selectedDeliveryDate={selectedDeliveryDate}
+            setSelectedDeliveryDate={setSelectedDeliveryDate}
           />
         )}
 
@@ -479,7 +525,21 @@ function App() {
   );
 }
 
-function TodayView({ selectedWeekStart, moveWeek, goCurrentWeek, totals, period, saveContext, suppliers, statuses, supplierProgress, setSelectedSupplier, setView }) {
+
+function DeliverySelector({ selectedWeekStart, selectedDeliveryDate, setSelectedDeliveryDate, compact = false }) {
+  const dates = datesOfWeek(selectedWeekStart);
+  return (
+    <div className={compact ? "delivery-selector compact-delivery" : "delivery-selector"}>
+      {dates.map(d => (
+        <button key={d} className={selectedDeliveryDate === d ? 'active' : ''} onClick={() => setSelectedDeliveryDate(d)}>
+          {shortDay(d)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function TodayView({ selectedWeekStart, selectedDeliveryDate, setSelectedDeliveryDate, moveWeek, goCurrentWeek, totals, period, saveContext, suppliers, statuses, supplierProgress, setSelectedSupplier, setView }) {
   return (
     <>
       <section className="card hero">
@@ -491,6 +551,7 @@ function TodayView({ selectedWeekStart, moveWeek, goCurrentWeek, totals, period,
         </div>
 
         <h2>Aujourd’hui</h2>
+        <DeliverySelector selectedWeekStart={selectedWeekStart} selectedDeliveryDate={selectedDeliveryDate} setSelectedDeliveryDate={setSelectedDeliveryDate} />
         <div className="quick-stats">
           <div><strong>{totals.checked}/{totals.total}</strong><span>produits vérifiés</span></div>
           <div><strong>{totals.ordered}</strong><span>lignes à commander</span></div>
@@ -553,7 +614,7 @@ function SupplierTabs({ suppliers, selectedSupplier, setSelectedSupplier, allPro
 }
 
 function WorkView(props) {
-  const { mode, suppliers, products, allProducts, setAllProducts, selectedSupplier, setSelectedSupplier, search, setSearch, items, previousItems, historyItems, saveItem, resetInventoryChecks, statuses, saveStatus, copyOrder, resetSupplierOrder, period, compactHeader } = props;
+  const { mode, suppliers, products, allProducts, setAllProducts, selectedSupplier, setSelectedSupplier, search, setSearch, items, previousItems, historyItems, saveItem, resetInventoryChecks, statuses, saveStatus, copyOrder, resetSupplierOrder, period, compactHeader, selectedWeekStart, selectedDeliveryDate, setSelectedDeliveryDate } = props;
   const supplier = suppliers.find(s => s.id === selectedSupplier);
   const status = statuses?.[selectedSupplier];
 
@@ -563,6 +624,7 @@ function WorkView(props) {
         <div className="split">
           <div>
             <h2>{mode === 'inventory' ? 'Inventaire' : allProducts ? 'Commandes — tous les produits' : `Commande — ${supplier?.name || ''}`}</h2>
+            <DeliverySelector selectedWeekStart={selectedWeekStart} selectedDeliveryDate={selectedDeliveryDate} setSelectedDeliveryDate={setSelectedDeliveryDate} compact />
             <p>{mode === 'inventory' ? 'Saisis les stocks et coche les produits vérifiés.' : 'Stock, historique, suggestion et quantité à commander.'}</p>
           </div>
           <div className="actions">

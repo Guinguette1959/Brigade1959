@@ -1,15 +1,19 @@
-# Brigade 1959 V4.3
+# Brigade 1959 V4.4
 
 Ajouts :
-- bouton Retour ;
-- mémorisation de la page précédente ;
-- navigation plus fluide ;
-- barre Inventaire/Commandes plus compacte au scroll ;
-- badge V4.3.
+- sur iPhone, la barre Inventaire/Commandes n'est plus lourde/fixe ;
+- sélection d'une date de livraison dans la semaine ;
+- commandes séparées par date de livraison ;
+- chaque fournisseur peut avoir plusieurs commandes dans la même semaine.
+
+Important Supabase :
+Avant utilisation complète, lancer le script SQL :
+`supabase_v4_4_delivery_dates.sql`
 
 Installation :
 1. Dézipper.
 2. Copier tout le contenu dans `Brigade1959`.
 3. Remplacer.
-4. GitHub Desktop : commit `Version V4.3 navigation`.
+4. Commit `Version V4.4 dates livraison`.
 5. Push origin.
+6. Dans Supabase SQL Editor, lancer `supabase_v4_4_delivery_dates.sql`.

@@ -127,3 +127,18 @@ select{width:100%;border:1px solid var(--border);border-radius:13px;padding:12px
   .back-btn{padding:8px 9px;font-size:13px}
   .work-toolbar.compact{top:142px}
 }
+
+/* V4.4 delivery dates + mobile toolbar */
+.delivery-selector{display:flex;gap:7px;overflow:auto;padding:10px 0 2px}
+.delivery-selector button{white-space:nowrap;background:#eef1e9;color:var(--text);padding:8px 10px;font-size:13px}
+.delivery-selector button.active{background:var(--main);color:white}
+.compact-delivery{padding:6px 0 0}
+.compact-delivery button{padding:7px 9px;font-size:12px}
+@media(max-width:760px){
+  .sticky{position:relative;top:auto;z-index:auto}
+  .work-toolbar{position:relative!important;top:auto!important}
+  .work-toolbar.compact{padding:12px 14px;border-radius:20px;box-shadow:0 10px 25px rgba(32,49,58,.045)}
+  .work-toolbar.compact h2{font-size:20px}
+  .work-toolbar.compact .actions button{font-size:14px}
+  .supplier-tabs{max-height:none!important}
+}
