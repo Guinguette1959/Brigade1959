@@ -77,3 +77,13 @@ input{width:100%;border:1px solid var(--border);border-radius:13px;padding:12px;
 .quick-stats div:nth-child(2){background:#fff7e8}
 .quick-stats div:nth-child(3){background:#eef4ff}
 @media(max-width:760px){.action-summary{grid-template-columns:1fr}}
+
+/* V4.1 gestion */
+.nav{grid-template-columns:repeat(5,1fr)}
+.manage-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+select{width:100%;border:1px solid var(--border);border-radius:13px;padding:12px;background:white;margin-top:5px}
+.manage-list{display:grid;gap:8px;margin-top:14px}
+.manage-row{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--border);background:#fff;border-radius:15px;padding:11px}
+.manage-row span{display:block;color:var(--muted);font-size:13px;font-weight:750}
+.manage-search{min-width:320px}
+@media(max-width:760px){.nav{grid-template-columns:repeat(2,1fr)}.manage-grid{grid-template-columns:1fr}.manage-row{align-items:flex-start;flex-direction:column}.manage-search{min-width:0;width:100%}}

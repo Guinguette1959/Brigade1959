@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
-import { Home, ClipboardList, Package, History, RefreshCcw, Search, CheckCircle2, Circle, Send } from 'lucide-react';
+import { Home, ClipboardList, Package, History, RefreshCcw, Search, CheckCircle2, Circle, Send, Settings, Plus, EyeOff, Eye } from 'lucide-react';
 import './styles.css';
 import { seedData } from './seedData.js';
 
@@ -60,6 +60,9 @@ function App() {
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [allProducts, setAllProducts] = useState(false);
   const [search, setSearch] = useState('');
+  const [newSupplierName, setNewSupplierName] = useState('');
+  const [newProductName, setNewProductName] = useState('');
+  const [newProductSupplierId, setNewProductSupplierId] = useState('');
 
   async function ensureSeed() {
     const existing = await supabase.from('suppliers').select('id').limit(1);
@@ -96,7 +99,7 @@ function App() {
     const sRes = await supabase.from('suppliers').select('*').order('name');
     if (sRes.error) throw sRes.error;
 
-    const pRes = await supabase.from('products').select('*').eq('active', true).order('sort_order');
+    const pRes = await supabase.from('products').select('*').order('sort_order');
     if (pRes.error) throw pRes.error;
 
     let periodRes = await supabase.from('supply_periods').select('*').eq('period_start', weekStart).maybeSingle();
@@ -139,6 +142,7 @@ function App() {
     setHistoryItems(hist);
     setStatuses(Object.fromEntries((statusesRes.data || []).map(s => [s.supplier_id, s])));
     setSelectedSupplier(old => old || sRes.data?.[0]?.id || null);
+    setNewProductSupplierId(old => old || sRes.data?.[0]?.id || null);
     setMessage('Sauvegarde automatique active');
     setLoading(false);
   }
@@ -152,14 +156,14 @@ function App() {
   }, [selectedWeekStart]);
 
   const filteredProducts = useMemo(() => {
-    let list = allProducts ? products : products.filter(p => p.supplier_id === selectedSupplier);
+    let list = allProducts ? products.filter(p => p.active !== false) : products.filter(p => p.active !== false && p.supplier_id === selectedSupplier);
     const q = search.trim().toLowerCase();
     if (q) list = list.filter(p => p.name.toLowerCase().includes(q));
     return list;
   }, [products, allProducts, selectedSupplier, search]);
 
   function supplierProducts(supplierId) {
-    return products.filter(p => p.supplier_id === supplierId);
+    return products.filter(p => p.active !== false && p.supplier_id === supplierId);
   }
 
   function supplierProgress(supplierId) {
@@ -220,6 +224,45 @@ function App() {
     else setMessage('Contexte sauvegardé');
   }
 
+
+  async function addSupplier() {
+    const name = newSupplierName.trim();
+    if (!name) return alert('Nom du fournisseur manquant.');
+    const res = await supabase.from('suppliers').insert({ name, order_days: [], delivery_days: [] }).select().single();
+    if (res.error) return alert('Erreur fournisseur : ' + res.error.message);
+    setNewSupplierName('');
+    await loadAll(selectedWeekStart);
+    setSelectedSupplier(res.data.id);
+    setNewProductSupplierId(res.data.id);
+    setMessage('Fournisseur ajouté');
+  }
+
+  async function addProduct() {
+    const name = newProductName.trim();
+    const supplierId = newProductSupplierId || selectedSupplier;
+    if (!supplierId) return alert('Choisis un fournisseur.');
+    if (!name) return alert('Nom du produit manquant.');
+    const count = products.filter(p => p.supplier_id === supplierId).length;
+    const res = await supabase.from('products').insert({
+      supplier_id: supplierId,
+      name,
+      sort_order: count + 1,
+      active: true
+    }).select().single();
+    if (res.error) return alert('Erreur produit : ' + res.error.message);
+    setNewProductName('');
+    await loadAll(selectedWeekStart);
+    setMessage('Produit ajouté');
+  }
+
+  async function toggleProductActive(productId, active) {
+    const res = await supabase.from('products').update({ active }).eq('id', productId);
+    if (res.error) return alert('Erreur produit : ' + res.error.message);
+    await loadAll(selectedWeekStart);
+    setMessage(active ? 'Produit réactivé' : 'Produit masqué');
+  }
+
+
   async function resetInventoryChecks() {
     if (!confirm('Décocher tous les produits vérifiés de cette semaine ?')) return;
     const res = await supabase.from('supply_items').update({ inventory_checked:false }).eq('period_id', period.id);
@@ -262,9 +305,10 @@ function App() {
   }
 
   const totals = useMemo(() => {
-    const total = products.length;
-    const checked = products.filter(p => items[p.id]?.inventory_checked).length;
-    const ordered = products.filter(p => Number(items[p.id]?.quantity_ordered || 0) > 0).length;
+    const activeProducts = products.filter(p => p.active !== false);
+    const total = activeProducts.length;
+    const checked = activeProducts.filter(p => items[p.id]?.inventory_checked).length;
+    const ordered = activeProducts.filter(p => Number(items[p.id]?.quantity_ordered || 0) > 0).length;
     const doneSuppliers = suppliers.filter(s => statuses[s.id]?.passed).length;
     return { total, checked, ordered, doneSuppliers, pct: total ? Math.round((checked/total)*100) : 0 };
   }, [products, items, suppliers, statuses]);
@@ -286,6 +330,7 @@ function App() {
         <button className={view === 'inventory' ? 'active' : ''} onClick={() => setView('inventory')}><ClipboardList size={18}/>Inventaire</button>
         <button className={view === 'orders' ? 'active' : ''} onClick={() => setView('orders')}><Package size={18}/>Commandes</button>
         <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}><History size={18}/>Historique</button>
+        <button className={view === 'manage' ? 'active' : ''} onClick={() => setView('manage')}><Settings size={18}/>Gestion</button>
       </nav>
 
       <main>
@@ -352,6 +397,22 @@ function App() {
             <h2>Historique</h2>
             <p>Les semaines précédentes restent sauvegardées. Retourne sur Aujourd'hui puis utilise S-1 ou S+1 pour consulter ou préparer une autre semaine.</p>
           </section>
+        )}
+
+        {view === 'manage' && (
+          <ManageView
+            suppliers={suppliers}
+            products={products}
+            newSupplierName={newSupplierName}
+            setNewSupplierName={setNewSupplierName}
+            addSupplier={addSupplier}
+            newProductName={newProductName}
+            setNewProductName={setNewProductName}
+            newProductSupplierId={newProductSupplierId}
+            setNewProductSupplierId={setNewProductSupplierId}
+            addProduct={addProduct}
+            toggleProductActive={toggleProductActive}
+          />
         )}
       </main>
     </div>
@@ -514,5 +575,89 @@ function ProductCard({ mode, product, item, previous, history, coef, saveItem })
     </article>
   );
 }
+
+
+function ManageView({
+  suppliers,
+  products,
+  newSupplierName,
+  setNewSupplierName,
+  addSupplier,
+  newProductName,
+  setNewProductName,
+  newProductSupplierId,
+  setNewProductSupplierId,
+  addProduct,
+  toggleProductActive
+}) {
+  const [filter, setFilter] = useState('');
+
+  const filteredProducts = products.filter(p => {
+    const supplier = suppliers.find(s => s.id === p.supplier_id);
+    const q = filter.trim().toLowerCase();
+    if (!q) return true;
+    return p.name.toLowerCase().includes(q) || supplier?.name?.toLowerCase().includes(q);
+  });
+
+  return (
+    <>
+      <section className="card">
+        <h2>Gestion des fournisseurs et produits</h2>
+        <p>Ajoute un fournisseur ou un produit. Pour supprimer sans perdre l'historique, on masque le produit.</p>
+      </section>
+
+      <section className="card manage-grid">
+        <div>
+          <h3>Ajouter un fournisseur</h3>
+          <label>Nom du fournisseur
+            <input value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} placeholder="Ex : Nouveau fournisseur" />
+          </label>
+          <button onClick={addSupplier}><Plus size={16}/>Ajouter fournisseur</button>
+        </div>
+
+        <div>
+          <h3>Ajouter un produit</h3>
+          <label>Fournisseur
+            <select value={newProductSupplierId || ''} onChange={(e) => setNewProductSupplierId(e.target.value)}>
+              {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </label>
+          <label>Nom du produit
+            <input value={newProductName} onChange={(e) => setNewProductName(e.target.value)} placeholder="Ex : Tomates anciennes" />
+          </label>
+          <button onClick={addProduct}><Plus size={16}/>Ajouter produit</button>
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="split">
+          <div>
+            <h2>Produits existants</h2>
+            <p>Masquer un produit le retire de l'application sans supprimer l'historique.</p>
+          </div>
+          <div className="search-wrap manage-search"><Search size={18}/><input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Rechercher fournisseur ou produit..." /></div>
+        </div>
+
+        <div className="manage-list">
+          {filteredProducts.map(p => {
+            const supplier = suppliers.find(s => s.id === p.supplier_id);
+            return (
+              <div key={p.id} className="manage-row">
+                <div>
+                  <strong>{p.name}</strong>
+                  <span>{supplier?.name || 'Sans fournisseur'}</span>
+                </div>
+                <button className="secondary" onClick={() => toggleProductActive(p.id, !p.active)}>
+                  {p.active ? <><EyeOff size={16}/>Masquer</> : <><Eye size={16}/>Réactiver</>}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </>
+  );
+}
+
 
 createRoot(document.getElementById('root')).render(<App />);
