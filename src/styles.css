@@ -1,0 +1,72 @@
+
+:root{
+  --bg:#f6f2ea;
+  --card:#ffffff;
+  --text:#17232b;
+  --muted:#667085;
+  --border:#ded8cd;
+  --main:#20313a;
+  --soft:#f1ece3;
+  --green:#207a43;
+  --blue:#2453a6;
+  --orange:#b26b00;
+  --red:#a43b32;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button,input{font:inherit}
+button{border:0;border-radius:14px;padding:11px 13px;background:var(--main);color:white;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+button.secondary{background:var(--soft);color:var(--text)}
+button.ok{background:var(--green);color:white}
+.loading{padding:30px;font-weight:800}
+.topbar{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:16px;background:#fffaf0;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20}
+h1,h2,h3{margin:0 0 5px}
+p,small{margin:0;color:var(--muted)}
+.nav{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px;background:white;border-bottom:1px solid var(--border);position:sticky;top:73px;z-index:19}
+.nav button{background:var(--soft);color:var(--text);justify-content:center}
+.nav button.active{background:var(--main);color:white}
+main{max-width:1160px;margin:auto;padding:12px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:14px;margin-bottom:12px}
+.sticky{position:sticky;top:132px;z-index:18}
+.split{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.context-grid{display:grid;grid-template-columns:180px 1fr;gap:10px}
+input{width:100%;border:1px solid var(--border);border-radius:12px;padding:12px;background:white;margin-top:5px}
+.reminders{display:grid;gap:8px}
+.reminder{border:1px solid var(--border);border-radius:16px;background:white;padding:12px;display:grid;gap:3px}
+.reminder.urgent{border-color:#e8a0a0;background:#fff0f0}
+.reminder.warn{border-color:#efcf84;background:#fff8e8}
+.reminder.info{background:#f8fafc}
+.supplier-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.supplier-card{text-align:left;background:var(--soft);color:var(--text);display:block}
+.supplier-card strong{display:block;margin-bottom:4px}
+.pill{display:inline-block;margin-top:8px;border-radius:999px;padding:4px 9px;font-size:12px;font-weight:900}
+.pill.draft{background:#fff4df;color:var(--orange)}
+.pill.prepared{background:#e9f0ff;color:var(--blue)}
+.pill.passed{background:#e8f5ee;color:var(--green)}
+.supplier-tabs{display:flex;gap:7px;overflow:auto;padding-top:10px}
+.supplier-tabs button{white-space:nowrap;background:var(--soft);color:var(--text)}
+.supplier-tabs button.active{background:var(--main);color:white}
+.search-wrap{display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:14px;padding:0 10px;margin-top:10px;background:white}
+.search-wrap input{border:0;margin:0;outline:none}
+.product-card{background:white;border:1px solid var(--border);border-radius:20px;padding:14px;margin-bottom:10px}
+.product-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.product-head h3{font-size:18px}
+.verify{min-width:48px;justify-content:center;background:#edf2ed;color:#2c5b35;border:1px solid #c8dcc8}
+.verify.done{background:var(--green);color:white}
+.fields{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;align-items:end}
+.inventory-fields{grid-template-columns:1fr 1fr}
+.metric{border:1px solid var(--border);border-radius:14px;padding:10px;background:#fafafa;min-height:66px}
+.metric span{display:block;color:var(--muted);font-size:13px;font-weight:800}
+.metric strong{font-size:22px}
+.wide{grid-column:1/-1}
+@media(max-width:760px){
+  .topbar{align-items:flex-start}.topbar button{font-size:13px}
+  .nav{top:78px;grid-template-columns:repeat(2,1fr)}
+  .nav button{font-size:14px}
+  .sticky{top:150px}
+  .split{flex-direction:column}
+  .context-grid{grid-template-columns:1fr}
+  .fields,.inventory-fields{grid-template-columns:1fr 1fr}
+  .fields label.wide{grid-column:1/-1}
+}
