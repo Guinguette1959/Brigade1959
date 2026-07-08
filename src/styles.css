@@ -80,5 +80,21 @@ input{width:100%;border:1px solid var(--border);border-radius:12px;padding:12px;
 .supplier-status-line{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .supplier-status-line span{background:var(--soft);border-radius:999px;padding:6px 9px;font-size:13px}
 
+/* V3.2 polish */
+body{background:linear-gradient(180deg,#f7f8f5 0%,#eef2ec 100%)}
+.topbar{background:#ffffffcc;backdrop-filter:blur(10px)}
+.card{box-shadow:0 10px 25px rgba(32,49,58,.05)}
+.hero-card{border-color:#cfd9d0}
 .weekbar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+.quick-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.quick-stats div{background:#f3f7f2;border-radius:16px;padding:12px;text-align:center;border:1px solid #dce7da}
+.quick-stats strong{display:block;font-size:22px;color:#20313a}
+.quick-stats span{color:var(--muted);font-size:12px;font-weight:800}
+.progress{height:10px;background:#e8eee7;border-radius:999px;overflow:hidden;margin-bottom:12px}
+.progress span{display:block;height:100%;background:linear-gradient(90deg,#2f8f55,#84bd6a)}
 button.danger{background:#fff0f0;color:#a43b32;border:1px solid #e8a0a0}
+.supplier-status-line{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.supplier-status-line span{background:#f3f7f2;border-radius:999px;padding:6px 9px;font-size:13px;border:1px solid #dce7da}
+.nav button{font-weight:900}
+.product-card{transition:.15s ease}
+.product-card:has(.verify.done){border-color:#acd2b7;background:#fbfffc}

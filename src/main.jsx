@@ -19,18 +19,30 @@ function mondayOfWeek(date = new Date()) {
 
 
 function isRealProductName(name) {
-  const n = String(name || '').trim().toLowerCase();
-  if (!n) return false;
-  const bad = [
-    'nombre de produits', 'jour de livraison', 'jours de livraison', 'livraison',
-    'commande pour', 'à commander', 'a commander', 'fournisseur', 'produit',
-    'stock actuel', 'semaine passée', 'semaine passee', 'suggestion',
-    'note', 'info :', 'infos :', 'information', 'informations'
+  const n = String(name || '').trim();
+  const low = n.toLowerCase();
+  if (!n || n.length < 2) return false;
+
+  const exactBad = [
+    'produit', 'produits', 'fournisseur', 'fournisseurs', 'note', 'notes',
+    'stock', 'stock actuel', 'quantité', 'quantite', 'à commander', 'a commander',
+    'suggestion', 'semaine dernière', 'semaine derniere', 'moyenne', 'historique',
+    'total', 'totaux', 'nombre de produits', 'livraison', 'livraisons'
   ];
-  if (bad.some(b => n.includes(b))) return false;
-  if (/^\d+\s*produits?$/.test(n)) return false;
-  if (/^(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)\b/.test(n)) return false;
-  if (n.length < 2) return false;
+  if (exactBad.includes(low)) return false;
+
+  const containsBad = [
+    'jour de livraison', 'jours de livraison', 'jour commande', 'jours commande',
+    'commande pour', 'livraison pour', 'date de livraison', 'date commande',
+    'nombre de produits', 'produits total', 'total produits',
+    'préparée', 'preparee', 'passée', 'passee'
+  ];
+  if (containsBad.some(x => low.includes(x))) return false;
+
+  if (/^\d+\s*(produit|produits|référence|references?)$/i.test(n)) return false;
+  if (/^(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)\b/i.test(n)) return false;
+  if (/^[\s:;.,_-]+$/.test(n)) return false;
+
   return true;
 }
 
@@ -258,9 +270,24 @@ function App() {
 
   async function resetInventoryChecks() {
     if (!confirm('Décocher tous les produits vérifiés pour cette période ?')) return;
-    for (const item of Object.values(items)) {
-      if (item.inventory_checked) await saveItem(item.product_id, { inventory_checked: false });
+    const { error } = await supabase
+      .from('supply_items')
+      .update({ inventory_checked: false })
+      .eq('period_id', period.id);
+
+    if (error) {
+      setMessage('Erreur réinitialisation : ' + error.message);
+      return;
     }
+
+    setItems((prev) => {
+      const copy = { ...prev };
+      Object.keys(copy).forEach((id) => {
+        copy[id] = { ...copy[id], inventory_checked: false };
+      });
+      return copy;
+    });
+    setMessage('Coches réinitialisées');
   }
 
   function copyOrder() {
@@ -321,6 +348,13 @@ function App() {
     await saveSupplierStatus(selectedSupplier, { prepared: false, passed: false, prepared_at: null, passed_at: null, passed_mode: null });
   }
 
+  function inventoryTotals() {
+    const total = products.length;
+    const checked = products.filter((p) => items[p.id]?.inventory_checked).length;
+    const pct = total ? Math.round((checked / total) * 100) : 0;
+    return { total, checked, pct };
+  }
+
   if (loading) return <div className="loading">Chargement de Brigade 1959...</div>;
 
   return (
@@ -334,7 +368,7 @@ function App() {
       </header>
 
       <nav className="nav">
-        <button className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}><Home size={18} /> Aujourd’hui</button>
+        <button className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}><Home size={18} /> 🏠 Aujourd’hui</button>
         <button className={view === 'inventory' ? 'active' : ''} onClick={() => setView('inventory')}><ClipboardList size={18} /> Inventaire</button>
         <button className={view === 'orders' ? 'active' : ''} onClick={() => setView('orders')}><Package size={18} /> Commandes</button>
         <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}><History size={18} /> Historique</button>
@@ -411,13 +445,7 @@ function TodayView({ reminders, period, selectedWeekStart, moveWeek, goCurrentWe
   return (
     <>
       <section className="card">
-        <div className="weekbar">
-          <button className="secondary" onClick={() => moveWeek(-1)}>← Semaine précédente</button>
-          <strong>Semaine du {new Date(selectedWeekStart).toLocaleDateString('fr-FR')}</strong>
-          <button className="secondary" onClick={goCurrentWeek}>Semaine actuelle</button>
-          <button className="secondary" onClick={() => moveWeek(1)}>Semaine suivante →</button>
-        </div>
-        <h2>Aujourd’hui</h2>
+        <h2>🏠 Aujourd’hui</h2>
         <div className="quick-stats">
           <div><strong>{checkedPct}%</strong><span>inventaire</span></div>
           <div><strong>{totals.checked}/{totals.total}</strong><span>vérifiés</span></div>
@@ -502,22 +530,30 @@ function WorkView(props) {
             <p>{mode === 'inventory' ? 'Stock actuel + coche vérifié.' : 'Stock, dernière commande, suggestion, à commander.'}</p>
           </div>
           <div className="actions">
-            {mode === 'inventory' && <button className="secondary" onClick={resetInventoryChecks}>Réinitialiser coches</button>}
+            {mode === 'inventory' && <button className="secondary" onClick={resetInventoryChecks}>↺ Coches</button>}
             {mode === 'orders' && !allProducts && (
               <>
                 <button className="secondary" onClick={copyOrder}><Send size={16} /> Copier</button>
                 <button className={status?.prepared ? 'ok' : 'secondary'} onClick={() => saveSupplierStatus(selectedSupplier, { prepared: !status?.prepared })}>
-                  {status?.prepared ? '✓ Préparée' : 'Marquer préparée'}
+                  {status?.prepared ? '✓ Préparée' : '✅ Préparée'}
                 </button>
                 <button className={status?.passed ? 'ok' : 'secondary'} onClick={() => { const next = !status?.passed; const mode = next ? prompt('Mode de passage ? (mail, téléphone, portail...)', status?.passed_mode || '') : null; saveSupplierStatus(selectedSupplier, { passed: next, passed_mode: mode }); }}>
-                  {status?.passed ? '✓ Passée' : 'Marquer passée'}
+                  {status?.passed ? '✓ Passée' : '📤 Passée'}
                 </button>
-                <button className="danger" onClick={resetSupplierOrder}>Réinitialiser commande</button>
+                <button className="danger" onClick={resetSupplierOrder}>↺ Commande</button>
               </>
             )}
           </div>
         </div>
 
+        {mode === 'orders' && !allProducts && (
+          <div className="supplier-status-line">
+            <span>Préparée : <strong>{status?.prepared ? 'oui' : 'non'}</strong></span>
+            <span>Passée : <strong>{status?.passed ? 'oui' : 'non'}</strong></span>
+            {status?.passed_at && <span>{new Date(status.passed_at).toLocaleString('fr-FR')}</span>}
+            {status?.passed_mode && <span>{status.passed_mode}</span>}
+          </div>
+        )}
         {mode === 'orders' && !allProducts && (
           <div className="supplier-status-line">
             <span>Préparée : <strong>{status?.prepared ? 'oui' : 'non'}</strong></span>

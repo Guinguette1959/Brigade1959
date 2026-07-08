@@ -49,9 +49,10 @@ dans Supabase > SQL Editor.
 - Demande du mode de passage quand la commande est marquée comme passée.
 
 
-## V3.1
-- Sélecteur de semaine : précédente / actuelle / suivante.
-- Explication logique : chaque lundi crée une nouvelle période automatiquement.
-- Bouton "Réinitialiser commande" par fournisseur.
-- Filtrage des fausses lignes produits côté application.
-- Script SQL `supabase_v3_1_cleanup_products.sql` pour nettoyer les titres importés par erreur.
+## V3.2
+- Sélecteur de semaine : S-1 / actuelle / S+1.
+- Reset inventaire corrigé par mise à jour directe Supabase.
+- Reset commande fournisseur.
+- Filtrage renforcé des fausses lignes produits.
+- Script `supabase_v3_2_cleanup_products.sql`.
+- Interface plus professionnelle : navigation plus lisible, couleurs utiles, icônes sobres.
