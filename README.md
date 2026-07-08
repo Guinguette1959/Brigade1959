@@ -40,3 +40,10 @@ Avant la première utilisation, lancer le fichier :
 
 dans Supabase > SQL Editor.
 
+
+
+## V3
+- Tableau de bord avec progression d'inventaire.
+- Moyenne des 4 dernières semaines par produit.
+- Statut fournisseur détaillé : préparée / passée / heure / mode.
+- Demande du mode de passage quand la commande est marquée comme passée.

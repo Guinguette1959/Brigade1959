@@ -42,6 +42,7 @@ function App() {
   const [period, setPeriod] = useState(null);
   const [items, setItems] = useState({});
   const [previousItems, setPreviousItems] = useState({});
+  const [historicalItems, setHistoricalItems] = useState({});
   const [statuses, setStatuses] = useState({});
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [allProducts, setAllProducts] = useState(false);
@@ -115,11 +116,30 @@ function App() {
       .limit(1);
 
     let prev = {};
+    let hist = {};
     if (!previousPeriodRes.error && previousPeriodRes.data?.length) {
       const prevItems = await supabase.from('supply_items').select('*').eq('period_id', previousPeriodRes.data[0].id);
       if (!prevItems.error) {
         prevItems.data?.forEach((item) => {
           prev[item.product_id] = item;
+        });
+      }
+    }
+
+    const lastPeriodsRes = await supabase
+      .from('supply_periods')
+      .select('*')
+      .lt('period_start', currentPeriod.period_start)
+      .order('period_start', { ascending: false })
+      .limit(4);
+
+    if (!lastPeriodsRes.error && lastPeriodsRes.data?.length) {
+      const periodIds = lastPeriodsRes.data.map((p) => p.id);
+      const histItems = await supabase.from('supply_items').select('*').in('period_id', periodIds);
+      if (!histItems.error) {
+        histItems.data?.forEach((item) => {
+          if (!hist[item.product_id]) hist[item.product_id] = [];
+          hist[item.product_id].push(item);
         });
       }
     }
@@ -130,6 +150,7 @@ function App() {
     setPeriod(currentPeriod);
     setItems(Object.fromEntries((itemsRes.data || []).map((item) => [item.product_id, item])));
     setPreviousItems(prev);
+    setHistoricalItems(hist);
     setStatuses(Object.fromEntries((statusRes.data || []).map((status) => [status.supplier_id, status])));
     setSelectedSupplier((old) => old || supplierList[0]?.id || null);
     setLoading(false);
@@ -304,6 +325,7 @@ function App() {
             setSearch={setSearch}
             items={items}
             previousItems={previousItems}
+            historicalItems={historicalItems}
             saveItem={saveItem}
             resetInventoryChecks={resetInventoryChecks}
           />
@@ -322,6 +344,7 @@ function App() {
             setSearch={setSearch}
             items={items}
             previousItems={previousItems}
+            historicalItems={historicalItems}
             saveItem={saveItem}
             period={period}
             statuses={statuses}
@@ -337,10 +360,18 @@ function App() {
 }
 
 function TodayView({ reminders, period, saveContext, suppliers, statuses, supplierProgress, setSelectedSupplier, setView }) {
+  const totals = suppliers.reduce((acc, s) => { const p = supplierProgress(s.id); acc.total += p.total; acc.checked += p.checked; acc.ordered += p.ordered; return acc; }, { total: 0, checked: 0, ordered: 0 });
+  const checkedPct = totals.total ? Math.round((totals.checked / totals.total) * 100) : 0;
   return (
     <>
       <section className="card">
         <h2>Aujourd’hui</h2>
+        <div className="quick-stats">
+          <div><strong>{checkedPct}%</strong><span>inventaire</span></div>
+          <div><strong>{totals.checked}/{totals.total}</strong><span>vérifiés</span></div>
+          <div><strong>{totals.ordered}</strong><span>lignes commande</span></div>
+        </div>
+        <div className="progress"><span style={{ width: checkedPct + '%' }} /></div>
         <div className="reminders">
           {reminders.length ? reminders.map((r, index) => (
             <div key={index} className={`reminder ${r.level}`}>
@@ -403,7 +434,7 @@ function SupplierTabs({ suppliers, selectedSupplier, setSelectedSupplier, allPro
 function WorkView(props) {
   const {
     mode, suppliers, products, allProducts, setAllProducts, selectedSupplier, setSelectedSupplier,
-    search, setSearch, items, previousItems, saveItem, resetInventoryChecks, period,
+    search, setSearch, items, previousItems, historicalItems, saveItem, resetInventoryChecks, period,
     statuses, saveSupplierStatus, copyOrder
   } = props;
 
@@ -426,7 +457,7 @@ function WorkView(props) {
                 <button className={status?.prepared ? 'ok' : 'secondary'} onClick={() => saveSupplierStatus(selectedSupplier, { prepared: !status?.prepared })}>
                   {status?.prepared ? '✓ Préparée' : 'Marquer préparée'}
                 </button>
-                <button className={status?.passed ? 'ok' : 'secondary'} onClick={() => saveSupplierStatus(selectedSupplier, { passed: !status?.passed })}>
+                <button className={status?.passed ? 'ok' : 'secondary'} onClick={() => { const next = !status?.passed; const mode = next ? prompt('Mode de passage ? (mail, téléphone, portail...)', status?.passed_mode || '') : null; saveSupplierStatus(selectedSupplier, { passed: next, passed_mode: mode }); }}>
                   {status?.passed ? '✓ Passée' : 'Marquer passée'}
                 </button>
               </>
@@ -434,6 +465,14 @@ function WorkView(props) {
           </div>
         </div>
 
+        {mode === 'orders' && !allProducts && (
+          <div className="supplier-status-line">
+            <span>Préparée : <strong>{status?.prepared ? 'oui' : 'non'}</strong></span>
+            <span>Passée : <strong>{status?.passed ? 'oui' : 'non'}</strong></span>
+            {status?.passed_at && <span>{new Date(status.passed_at).toLocaleString('fr-FR')}</span>}
+            {status?.passed_mode && <span>{status.passed_mode}</span>}
+          </div>
+        )}
         <SupplierTabs suppliers={suppliers} selectedSupplier={selectedSupplier} setSelectedSupplier={setSelectedSupplier} allProducts={allProducts} setAllProducts={setAllProducts} />
 
         <div className="search-wrap">
@@ -450,6 +489,7 @@ function WorkView(props) {
             mode={mode}
             item={items[p.id] || {}}
             previous={previousItems[p.id] || {}}
+            history={historicalItems?.[p.id] || []}
             coef={Number(period?.activity_coef || 1)}
             saveItem={saveItem}
           />
@@ -459,11 +499,13 @@ function WorkView(props) {
   );
 }
 
-function ProductCard({ product, mode, item, previous, coef, saveItem }) {
+function ProductCard({ product, mode, item, previous, history = [], coef, saveItem }) {
   const last = Number(previous.quantity_ordered || 0);
   const stock = Number(item.stock_current || 0);
   const suggestion = Math.max(0, Math.round(last * coef - stock));
   const consumed = last && stock >= 0 ? Math.max(0, last - stock) : null;
+  const historyValues = history.map((h) => Number(h.quantity_ordered || 0)).filter(Boolean);
+  const avg4 = historyValues.length ? Math.round((historyValues.reduce((a,b)=>a+b,0) / historyValues.length) * 10) / 10 : null;
 
   return (
     <article className="product-card">
@@ -492,6 +534,11 @@ function ProductCard({ product, mode, item, previous, coef, saveItem }) {
 
         {mode === 'orders' && (
           <>
+            <div className="metric">
+              <span>Moy. 4 sem.</span>
+              <strong>{avg4 || '-'}</strong>
+            </div>
+
             <div className="metric">
               <span>Suggestion</span>
               <strong>{suggestion || '-'}</strong>
