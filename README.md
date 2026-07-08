@@ -47,3 +47,11 @@ dans Supabase > SQL Editor.
 - Moyenne des 4 dernières semaines par produit.
 - Statut fournisseur détaillé : préparée / passée / heure / mode.
 - Demande du mode de passage quand la commande est marquée comme passée.
+
+
+## V3.1
+- Sélecteur de semaine : précédente / actuelle / suivante.
+- Explication logique : chaque lundi crée une nouvelle période automatiquement.
+- Bouton "Réinitialiser commande" par fournisseur.
+- Filtrage des fausses lignes produits côté application.
+- Script SQL `supabase_v3_1_cleanup_products.sql` pour nettoyer les titres importés par erreur.

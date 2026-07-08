@@ -17,6 +17,23 @@ function mondayOfWeek(date = new Date()) {
   return d.toISOString().slice(0, 10);
 }
 
+
+function isRealProductName(name) {
+  const n = String(name || '').trim().toLowerCase();
+  if (!n) return false;
+  const bad = [
+    'nombre de produits', 'jour de livraison', 'jours de livraison', 'livraison',
+    'commande pour', 'à commander', 'a commander', 'fournisseur', 'produit',
+    'stock actuel', 'semaine passée', 'semaine passee', 'suggestion',
+    'note', 'info :', 'infos :', 'information', 'informations'
+  ];
+  if (bad.some(b => n.includes(b))) return false;
+  if (/^\d+\s*produits?$/.test(n)) return false;
+  if (/^(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)\b/.test(n)) return false;
+  if (n.length < 2) return false;
+  return true;
+}
+
 function statusLabel(status) {
   if (!status) return 'À préparer';
   if (status.prepared && status.passed) return 'Passée';
@@ -48,6 +65,7 @@ function App() {
   const [allProducts, setAllProducts] = useState(false);
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState('');
+  const [selectedWeekStart, setSelectedWeekStart] = useState(mondayOfWeek());
 
   async function ensureSeed() {
     const { data, error } = await supabase.from('suppliers').select('id').limit(1);
@@ -80,7 +98,7 @@ function App() {
     }
   }
 
-  async function loadAll() {
+  async function loadAll(weekStartOverride = selectedWeekStart) {
     setLoading(true);
     setMessage('Chargement...');
     await ensureSeed();
@@ -91,7 +109,7 @@ function App() {
     const productsRes = await supabase.from('products').select('*').eq('active', true).order('sort_order');
     if (productsRes.error) throw productsRes.error;
 
-    const weekStart = mondayOfWeek();
+    const weekStart = weekStartOverride || mondayOfWeek();
     let periodRes = await supabase.from('supply_periods').select('*').eq('period_start', weekStart).maybeSingle();
     if (periodRes.error) throw periodRes.error;
 
@@ -146,7 +164,7 @@ function App() {
 
     const supplierList = suppliersRes.data || [];
     setSuppliers(supplierList);
-    setProducts(productsRes.data || []);
+    setProducts((productsRes.data || []).filter((p) => isRealProductName(p.name)));
     setPeriod(currentPeriod);
     setItems(Object.fromEntries((itemsRes.data || []).map((item) => [item.product_id, item])));
     setPreviousItems(prev);
@@ -158,12 +176,12 @@ function App() {
   }
 
   useEffect(() => {
-    loadAll().catch((error) => {
+    loadAll(selectedWeekStart).catch((error) => {
       console.error(error);
       setLoading(false);
       setMessage('Erreur : ' + error.message);
     });
-  }, []);
+  }, [selectedWeekStart]);
 
   const selectedProducts = useMemo(() => {
     let list = allProducts ? products : products.filter((p) => p.supplier_id === selectedSupplier);
@@ -279,6 +297,30 @@ function App() {
     return result.slice(0, 8);
   }, [suppliers, statuses, items, products]);
 
+
+  function moveWeek(delta) {
+    const d = new Date(selectedWeekStart);
+    d.setDate(d.getDate() + delta * 7);
+    setSelectedWeekStart(d.toISOString().slice(0, 10));
+  }
+
+  function goCurrentWeek() {
+    setSelectedWeekStart(mondayOfWeek());
+  }
+
+  async function resetSupplierOrder() {
+    if (!selectedSupplier) return;
+    if (!confirm('Réinitialiser les quantités à commander pour ce fournisseur sur cette semaine ?')) return;
+    const list = supplierProducts(selectedSupplier);
+    for (const product of list) {
+      const item = items[product.id];
+      if (item?.quantity_ordered || item?.note) {
+        await saveItem(product.id, { quantity_ordered: null, note: item.note || null });
+      }
+    }
+    await saveSupplierStatus(selectedSupplier, { prepared: false, passed: false, prepared_at: null, passed_at: null, passed_mode: null });
+  }
+
   if (loading) return <div className="loading">Chargement de Brigade 1959...</div>;
 
   return (
@@ -288,7 +330,7 @@ function App() {
           <h1>Brigade 1959</h1>
           <p>{message}</p>
         </div>
-        <button className="secondary" onClick={loadAll}><RefreshCcw size={18} /> Actualiser</button>
+        <button className="secondary" onClick={() => loadAll(selectedWeekStart)}><RefreshCcw size={18} /> Actualiser</button>
       </header>
 
       <nav className="nav">
@@ -303,6 +345,9 @@ function App() {
           <TodayView
             reminders={reminders}
             period={period}
+            selectedWeekStart={selectedWeekStart}
+            moveWeek={moveWeek}
+            goCurrentWeek={goCurrentWeek}
             saveContext={saveContext}
             suppliers={suppliers}
             statuses={statuses}
@@ -350,6 +395,7 @@ function App() {
             statuses={statuses}
             saveSupplierStatus={saveSupplierStatus}
             copyOrder={copyOrder}
+            resetSupplierOrder={resetSupplierOrder}
           />
         )}
 
@@ -359,12 +405,18 @@ function App() {
   );
 }
 
-function TodayView({ reminders, period, saveContext, suppliers, statuses, supplierProgress, setSelectedSupplier, setView }) {
+function TodayView({ reminders, period, selectedWeekStart, moveWeek, goCurrentWeek, saveContext, suppliers, statuses, supplierProgress, setSelectedSupplier, setView }) {
   const totals = suppliers.reduce((acc, s) => { const p = supplierProgress(s.id); acc.total += p.total; acc.checked += p.checked; acc.ordered += p.ordered; return acc; }, { total: 0, checked: 0, ordered: 0 });
   const checkedPct = totals.total ? Math.round((totals.checked / totals.total) * 100) : 0;
   return (
     <>
       <section className="card">
+        <div className="weekbar">
+          <button className="secondary" onClick={() => moveWeek(-1)}>← Semaine précédente</button>
+          <strong>Semaine du {new Date(selectedWeekStart).toLocaleDateString('fr-FR')}</strong>
+          <button className="secondary" onClick={goCurrentWeek}>Semaine actuelle</button>
+          <button className="secondary" onClick={() => moveWeek(1)}>Semaine suivante →</button>
+        </div>
         <h2>Aujourd’hui</h2>
         <div className="quick-stats">
           <div><strong>{checkedPct}%</strong><span>inventaire</span></div>
@@ -435,7 +487,7 @@ function WorkView(props) {
   const {
     mode, suppliers, products, allProducts, setAllProducts, selectedSupplier, setSelectedSupplier,
     search, setSearch, items, previousItems, historicalItems, saveItem, resetInventoryChecks, period,
-    statuses, saveSupplierStatus, copyOrder
+    statuses, saveSupplierStatus, copyOrder, resetSupplierOrder
   } = props;
 
   const supplier = suppliers.find((s) => s.id === selectedSupplier);
@@ -460,6 +512,7 @@ function WorkView(props) {
                 <button className={status?.passed ? 'ok' : 'secondary'} onClick={() => { const next = !status?.passed; const mode = next ? prompt('Mode de passage ? (mail, téléphone, portail...)', status?.passed_mode || '') : null; saveSupplierStatus(selectedSupplier, { passed: next, passed_mode: mode }); }}>
                   {status?.passed ? '✓ Passée' : 'Marquer passée'}
                 </button>
+                <button className="danger" onClick={resetSupplierOrder}>Réinitialiser commande</button>
               </>
             )}
           </div>

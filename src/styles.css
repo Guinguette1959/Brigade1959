@@ -79,3 +79,6 @@ input{width:100%;border:1px solid var(--border);border-radius:12px;padding:12px;
 .progress span{display:block;height:100%;background:var(--green)}
 .supplier-status-line{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .supplier-status-line span{background:var(--soft);border-radius:999px;padding:6px 9px;font-size:13px}
+
+.weekbar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+button.danger{background:#fff0f0;color:#a43b32;border:1px solid #e8a0a0}
