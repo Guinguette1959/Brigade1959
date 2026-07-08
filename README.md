@@ -1,17 +1,19 @@
-# Brigade 1959 V3.2 complète
+# Brigade 1959 V4
 
-Version complète et visible.
+Version V4 : stabilisation + meilleure lisibilité.
 
 Nouveautés :
-- navigation semaine S-1 / Aujourd'hui / S+1 ;
-- reset inventaire corrigé ;
-- reset commande fournisseur ;
-- design plus propre ;
-- statistiques plus lisibles ;
-- filtrage des fausses lignes produit ;
-- historique S-1 et moyenne 4 semaines.
+- badge V4 visible en haut ;
+- bouton Aujourd'hui corrigé ;
+- cartes fournisseurs plus lisibles ;
+- couleurs d'état plus claires ;
+- résumé d'action sur l'accueil ;
+- interface plus professionnelle.
 
-Déploiement :
-1. Remplacer tout le contenu du dépôt GitHub par ces fichiers.
-2. Commit + Push.
-3. Vercel déploie automatiquement.
+Installation :
+1. Dézipper.
+2. Copier tout le contenu dans le dossier GitHub `Brigade1959`.
+3. Remplacer les fichiers.
+4. GitHub Desktop : commit `Version V4`.
+5. Push origin.
+6. Vercel déploie automatiquement.

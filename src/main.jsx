@@ -35,8 +35,8 @@ function isRealProductName(name) {
 }
 
 function statusLabel(status) {
-  if (status?.prepared && status?.passed) return 'Passée';
-  if (status?.prepared) return 'Préparée';
+  if (status?.prepared && status?.passed) return 'Commande passée';
+  if (status?.prepared) return 'Commande préparée';
   return 'À préparer';
 }
 function statusClass(status) {
@@ -247,6 +247,10 @@ function App() {
     setSelectedWeekStart(d.toISOString().slice(0,10));
   }
 
+  function goCurrentWeek() {
+    setSelectedWeekStart(mondayOfWeek());
+  }
+
   function copyOrder() {
     const supplier = suppliers.find(s => s.id === selectedSupplier);
     const lines = supplierProducts(selectedSupplier)
@@ -271,7 +275,7 @@ function App() {
     <div className="app">
       <header className="topbar">
         <div>
-          <h1>Brigade 1959</h1>
+          <h1>Brigade 1959 <span className="version-pill">V4</span></h1>
           <p>{message}</p>
         </div>
         <button className="secondary small" onClick={() => loadAll(selectedWeekStart)}><RefreshCcw size={16}/>Actualiser</button>
@@ -289,6 +293,7 @@ function App() {
           <TodayView
             selectedWeekStart={selectedWeekStart}
             moveWeek={moveWeek}
+            goCurrentWeek={goCurrentWeek}
             totals={totals}
             period={period}
             saveContext={saveContext}
@@ -345,7 +350,7 @@ function App() {
         {view === 'history' && (
           <section className="card">
             <h2>Historique</h2>
-            <p>Utilise les boutons S-1 / S+1 depuis l'accueil pour consulter ou préparer une autre semaine.</p>
+            <p>Les semaines précédentes restent sauvegardées. Retourne sur Aujourd'hui puis utilise S-1 ou S+1 pour consulter ou préparer une autre semaine.</p>
           </section>
         )}
       </main>
@@ -353,14 +358,14 @@ function App() {
   );
 }
 
-function TodayView({ selectedWeekStart, moveWeek, totals, period, saveContext, suppliers, statuses, supplierProgress, setSelectedSupplier, setView }) {
+function TodayView({ selectedWeekStart, moveWeek, goCurrentWeek, totals, period, saveContext, suppliers, statuses, supplierProgress, setSelectedSupplier, setView }) {
   return (
     <>
       <section className="card hero">
         <div className="weekbar">
           <button className="secondary" onClick={() => moveWeek(-1)}>← S-1</button>
           <strong>Semaine du {formatDateFr(selectedWeekStart)}</strong>
-          <button className="secondary" onClick={() => moveWeek(0)}>Aujourd'hui</button>
+          <button className="secondary" onClick={goCurrentWeek}>Aujourd'hui</button>
           <button className="secondary" onClick={() => moveWeek(1)}>S+1 →</button>
         </div>
 
@@ -371,6 +376,10 @@ function TodayView({ selectedWeekStart, moveWeek, totals, period, saveContext, s
           <div><strong>{totals.doneSuppliers}/{suppliers.length}</strong><span>fournisseurs passés</span></div>
         </div>
         <div className="progress"><span style={{ width: totals.pct + '%' }} /></div>
+        <div className="action-summary">
+          <div><b>Priorité</b><span>{totals.ordered > 0 ? 'Vérifier les commandes en cours' : 'Préparer les fournisseurs'}</span></div>
+          <div><b>État</b><span>{totals.doneSuppliers === suppliers.length ? 'Toutes les commandes sont passées' : `${suppliers.length - totals.doneSuppliers} fournisseurs restants`}</span></div>
+        </div>
       </section>
 
       <section className="card">
@@ -394,8 +403,11 @@ function TodayView({ selectedWeekStart, moveWeek, totals, period, saveContext, s
             return (
               <button key={s.id} className={'supplier-card ' + statusClass(st)} onClick={() => { setSelectedSupplier(s.id); setView('orders'); }}>
                 <strong>{s.name}</strong>
-                <span>{p.total} produits</span>
-                <span>{p.checked} vérifiés · {p.ordered} à commander</span>
+                <div className="supplier-numbers">
+                  <span><b>{p.total}</b> produits</span>
+                  <span><b>{p.checked}</b> vérifiés</span>
+                  <span><b>{p.ordered}</b> à commander</span>
+                </div>
                 <em>{statusLabel(st)}</em>
               </button>
             );
