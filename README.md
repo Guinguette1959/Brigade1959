@@ -1,15 +1,15 @@
-# Brigade 1959 V4.1
+# Brigade 1959 V4.3
 
 Ajouts :
-- page Gestion ;
-- ajout fournisseur ;
-- ajout produit ;
-- masquer/réactiver un produit sans perdre l'historique.
+- bouton Retour ;
+- mémorisation de la page précédente ;
+- navigation plus fluide ;
+- barre Inventaire/Commandes plus compacte au scroll ;
+- badge V4.3.
 
 Installation :
 1. Dézipper.
-2. Copier tout le contenu dans le dossier `Brigade1959`.
+2. Copier tout le contenu dans `Brigade1959`.
 3. Remplacer.
-4. GitHub Desktop : commit `Version V4.1 gestion`.
+4. GitHub Desktop : commit `Version V4.3 navigation`.
 5. Push origin.
-6. Vercel déploie automatiquement.

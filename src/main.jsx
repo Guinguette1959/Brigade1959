@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
-import { Home, ClipboardList, Package, History, RefreshCcw, Search, CheckCircle2, Circle, Send, Settings, Plus, EyeOff, Eye } from 'lucide-react';
+import { Home, ClipboardList, Package, History, RefreshCcw, Search, CheckCircle2, Circle, Send, Settings, Plus, EyeOff, Eye, Square, CheckSquare, Edit3, ArrowLeft } from 'lucide-react';
 import './styles.css';
 import { seedData } from './seedData.js';
 
@@ -47,6 +47,8 @@ function statusClass(status) {
 
 function App() {
   const [view, setView] = useState('today');
+  const [previousView, setPreviousView] = useState(null);
+  const [compactHeader, setCompactHeader] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('Chargement...');
   const [selectedWeekStart, setSelectedWeekStart] = useState(mondayOfWeek());
@@ -155,6 +157,30 @@ function App() {
     });
   }, [selectedWeekStart]);
 
+  useEffect(() => {
+    const onScroll = () => setCompactHeader(window.scrollY > 120);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  function navigate(nextView) {
+    if (nextView === view) return;
+    setPreviousView(view);
+    setView(nextView);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function goBack() {
+    if (!previousView) return;
+    const current = view;
+    setView(previousView);
+    setPreviousView(current);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+
+
   const filteredProducts = useMemo(() => {
     let list = allProducts ? products.filter(p => p.active !== false) : products.filter(p => p.active !== false && p.supplier_id === selectedSupplier);
     const q = search.trim().toLowerCase();
@@ -262,6 +288,32 @@ function App() {
     setMessage(active ? 'Produit réactivé' : 'Produit masqué');
   }
 
+  async function bulkSetProductsActive(productIds, active) {
+    if (!productIds.length) return alert('Aucun produit sélectionné.');
+    const res = await supabase.from('products').update({ active }).in('id', productIds);
+    if (res.error) return alert('Erreur produits : ' + res.error.message);
+    await loadAll(selectedWeekStart);
+    setMessage(active ? 'Produits réactivés' : 'Produits masqués');
+  }
+
+  async function renameProduct(productId, currentName) {
+    const name = prompt('Nouveau nom du produit :', currentName);
+    if (!name || !name.trim()) return;
+    const res = await supabase.from('products').update({ name: name.trim() }).eq('id', productId);
+    if (res.error) return alert('Erreur renommage : ' + res.error.message);
+    await loadAll(selectedWeekStart);
+    setMessage('Produit renommé');
+  }
+
+  async function renameSupplier(supplierId, currentName) {
+    const name = prompt('Nouveau nom du fournisseur :', currentName);
+    if (!name || !name.trim()) return;
+    const res = await supabase.from('suppliers').update({ name: name.trim() }).eq('id', supplierId);
+    if (res.error) return alert('Erreur renommage fournisseur : ' + res.error.message);
+    await loadAll(selectedWeekStart);
+    setMessage('Fournisseur renommé');
+  }
+
 
   async function resetInventoryChecks() {
     if (!confirm('Décocher tous les produits vérifiés de cette semaine ?')) return;
@@ -318,19 +370,22 @@ function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div>
-          <h1>Brigade 1959 <span className="version-pill">V4</span></h1>
-          <p>{message}</p>
+        <div className="top-left">
+          <button className="back-btn" disabled={!previousView} onClick={goBack}><ArrowLeft size={18}/>Retour</button>
+          <div>
+            <h1>Brigade 1959 <span className="version-pill">V4.3</span></h1>
+            <p>{message}</p>
+          </div>
         </div>
         <button className="secondary small" onClick={() => loadAll(selectedWeekStart)}><RefreshCcw size={16}/>Actualiser</button>
       </header>
 
       <nav className="nav">
-        <button className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}><Home size={18}/>Aujourd'hui</button>
-        <button className={view === 'inventory' ? 'active' : ''} onClick={() => setView('inventory')}><ClipboardList size={18}/>Inventaire</button>
-        <button className={view === 'orders' ? 'active' : ''} onClick={() => setView('orders')}><Package size={18}/>Commandes</button>
-        <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}><History size={18}/>Historique</button>
-        <button className={view === 'manage' ? 'active' : ''} onClick={() => setView('manage')}><Settings size={18}/>Gestion</button>
+        <button className={view === 'today' ? 'active' : ''} onClick={() => navigate('today')}><Home size={18}/>Aujourd'hui</button>
+        <button className={view === 'inventory' ? 'active' : ''} onClick={() => navigate('inventory')}><ClipboardList size={18}/>Inventaire</button>
+        <button className={view === 'orders' ? 'active' : ''} onClick={() => navigate('orders')}><Package size={18}/>Commandes</button>
+        <button className={view === 'history' ? 'active' : ''} onClick={() => navigate('history')}><History size={18}/>Historique</button>
+        <button className={view === 'manage' ? 'active' : ''} onClick={() => navigate('manage')}><Settings size={18}/>Gestion</button>
       </nav>
 
       <main>
@@ -366,6 +421,7 @@ function App() {
             historyItems={historyItems}
             saveItem={saveItem}
             resetInventoryChecks={resetInventoryChecks}
+            compactHeader={compactHeader}
           />
         )}
 
@@ -389,6 +445,7 @@ function App() {
             copyOrder={copyOrder}
             resetSupplierOrder={resetSupplierOrder}
             period={period}
+            compactHeader={compactHeader}
           />
         )}
 
@@ -412,6 +469,9 @@ function App() {
             setNewProductSupplierId={setNewProductSupplierId}
             addProduct={addProduct}
             toggleProductActive={toggleProductActive}
+            bulkSetProductsActive={bulkSetProductsActive}
+            renameProduct={renameProduct}
+            renameSupplier={renameSupplier}
           />
         )}
       </main>
@@ -493,13 +553,13 @@ function SupplierTabs({ suppliers, selectedSupplier, setSelectedSupplier, allPro
 }
 
 function WorkView(props) {
-  const { mode, suppliers, products, allProducts, setAllProducts, selectedSupplier, setSelectedSupplier, search, setSearch, items, previousItems, historyItems, saveItem, resetInventoryChecks, statuses, saveStatus, copyOrder, resetSupplierOrder, period } = props;
+  const { mode, suppliers, products, allProducts, setAllProducts, selectedSupplier, setSelectedSupplier, search, setSearch, items, previousItems, historyItems, saveItem, resetInventoryChecks, statuses, saveStatus, copyOrder, resetSupplierOrder, period, compactHeader } = props;
   const supplier = suppliers.find(s => s.id === selectedSupplier);
   const status = statuses?.[selectedSupplier];
 
   return (
     <>
-      <section className="card sticky">
+      <section className={'card sticky work-toolbar ' + (compactHeader ? 'compact' : '')}>
         <div className="split">
           <div>
             <h2>{mode === 'inventory' ? 'Inventaire' : allProducts ? 'Commandes — tous les produits' : `Commande — ${supplier?.name || ''}`}</h2>
@@ -577,6 +637,24 @@ function ProductCard({ mode, product, item, previous, history, coef, saveItem })
 }
 
 
+
+function looksLikeFalseLine(name) {
+  const low = String(name || '').toLowerCase().trim();
+  if (!low) return true;
+  const patterns = [
+    'mardi pour mercredi', 'mercredi pour jeudi', 'mercredi pour vendredi',
+    'dimanche pour lundi', 'lundi pour mardi', 'jeudi pour vendredi',
+    'vendredi pour samedi', 'samedi pour dimanche',
+    'jour de livraison', 'jours de livraison', 'jour commande', 'jours commande',
+    'nombre de produits', 'produit', 'stock actuel', 'semaine dernière',
+    'suggestion', 'à commander', 'a commander', 'note'
+  ];
+  if (patterns.some(p => low.includes(p))) return true;
+  if (/^(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)\b/.test(low)) return true;
+  if (/^\d+\s*(produit|produits)$/.test(low)) return true;
+  return false;
+}
+
 function ManageView({
   suppliers,
   products,
@@ -588,22 +666,63 @@ function ManageView({
   newProductSupplierId,
   setNewProductSupplierId,
   addProduct,
-  toggleProductActive
+  toggleProductActive,
+  bulkSetProductsActive,
+  renameProduct,
+  renameSupplier
 }) {
   const [filter, setFilter] = useState('');
+  const [supplierFilter, setSupplierFilter] = useState('all');
+  const [showOnlySuspects, setShowOnlySuspects] = useState(false);
+  const [showHidden, setShowHidden] = useState(true);
+  const [selectedIds, setSelectedIds] = useState([]);
 
   const filteredProducts = products.filter(p => {
     const supplier = suppliers.find(s => s.id === p.supplier_id);
     const q = filter.trim().toLowerCase();
+    if (!showHidden && p.active === false) return false;
+    if (supplierFilter !== 'all' && p.supplier_id !== supplierFilter) return false;
+    if (showOnlySuspects && !looksLikeFalseLine(p.name)) return false;
     if (!q) return true;
     return p.name.toLowerCase().includes(q) || supplier?.name?.toLowerCase().includes(q);
   });
 
+  const selectedVisibleIds = selectedIds.filter(id => filteredProducts.some(p => p.id === id));
+
+  function toggleSelected(id) {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
+
+  function selectAllVisible() {
+    setSelectedIds(filteredProducts.map(p => p.id));
+  }
+
+  function clearSelection() {
+    setSelectedIds([]);
+  }
+
+  function selectSuspects() {
+    setSelectedIds(filteredProducts.filter(p => looksLikeFalseLine(p.name)).map(p => p.id));
+  }
+
+  async function bulkHide() {
+    if (!selectedVisibleIds.length) return alert('Aucun produit sélectionné.');
+    if (!confirm(`Masquer ${selectedVisibleIds.length} produit(s) sélectionné(s) ?`)) return;
+    await bulkSetProductsActive(selectedVisibleIds, false);
+    clearSelection();
+  }
+
+  async function bulkReactivate() {
+    if (!selectedVisibleIds.length) return alert('Aucun produit sélectionné.');
+    await bulkSetProductsActive(selectedVisibleIds, true);
+    clearSelection();
+  }
+
   return (
     <>
       <section className="card">
-        <h2>Gestion des fournisseurs et produits</h2>
-        <p>Ajoute un fournisseur ou un produit. Pour supprimer sans perdre l'historique, on masque le produit.</p>
+        <h2>Gestion rapide</h2>
+        <p>Sélectionne plusieurs lignes, puis masque-les en une seule action. Idéal pour nettoyer les fausses lignes comme “mardi pour mercredi”.</p>
       </section>
 
       <section className="card manage-grid">
@@ -629,30 +748,63 @@ function ManageView({
         </div>
       </section>
 
-      <section className="card">
-        <div className="split">
+      <section className="card bulk-toolbar">
+        <div className="bulk-top">
           <div>
-            <h2>Produits existants</h2>
-            <p>Masquer un produit le retire de l'application sans supprimer l'historique.</p>
+            <h2>Nettoyage produits</h2>
+            <p>{filteredProducts.length} lignes affichées · {selectedVisibleIds.length} sélectionnées</p>
           </div>
-          <div className="search-wrap manage-search"><Search size={18}/><input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Rechercher fournisseur ou produit..." /></div>
+          <div className="actions">
+            <button className="secondary" onClick={selectAllVisible}>Tout sélectionner</button>
+            <button className="secondary" onClick={selectSuspects}>Sélectionner suspects</button>
+            <button className="secondary" onClick={clearSelection}>Désélectionner</button>
+            <button className="danger" onClick={bulkHide}><EyeOff size={16}/>Masquer sélection</button>
+            <button className="secondary" onClick={bulkReactivate}><Eye size={16}/>Réactiver sélection</button>
+          </div>
         </div>
 
-        <div className="manage-list">
-          {filteredProducts.map(p => {
-            const supplier = suppliers.find(s => s.id === p.supplier_id);
-            return (
-              <div key={p.id} className="manage-row">
-                <div>
-                  <strong>{p.name}</strong>
-                  <span>{supplier?.name || 'Sans fournisseur'}</span>
-                </div>
+        <div className="manage-filters">
+          <div className="search-wrap manage-search"><Search size={18}/><input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Rechercher produit ou fournisseur..." /></div>
+          <select value={supplierFilter} onChange={(e) => setSupplierFilter(e.target.value)}>
+            <option value="all">Tous les fournisseurs</option>
+            {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <label className="checkline"><input type="checkbox" checked={showOnlySuspects} onChange={(e) => setShowOnlySuspects(e.target.checked)} /> Fausses lignes probables</label>
+          <label className="checkline"><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> Voir produits masqués</label>
+        </div>
+      </section>
+
+      <section className="manage-list">
+        {filteredProducts.map(p => {
+          const supplier = suppliers.find(s => s.id === p.supplier_id);
+          const selected = selectedIds.includes(p.id);
+          const suspect = looksLikeFalseLine(p.name);
+          return (
+            <div key={p.id} className={'manage-row ' + (selected ? 'selected ' : '') + (p.active === false ? 'hidden-row ' : '') + (suspect ? 'suspect-row' : '')}>
+              <button className="select-btn" onClick={() => toggleSelected(p.id)}>
+                {selected ? <CheckSquare size={22}/> : <Square size={22}/>}
+              </button>
+              <div className="manage-main">
+                <strong>{p.name}</strong>
+                <span>{supplier?.name || 'Sans fournisseur'} {p.active === false ? '· masqué' : ''} {suspect ? '· suspect' : ''}</span>
+              </div>
+              <div className="row-actions">
+                <button className="secondary" onClick={() => renameProduct(p.id, p.name)}><Edit3 size={16}/>Renommer</button>
                 <button className="secondary" onClick={() => toggleProductActive(p.id, !p.active)}>
                   {p.active ? <><EyeOff size={16}/>Masquer</> : <><Eye size={16}/>Réactiver</>}
                 </button>
               </div>
-            );
-          })}
+            </div>
+          );
+        })}
+      </section>
+
+      <section className="card">
+        <h2>Renommer un fournisseur</h2>
+        <div className="supplier-manage-grid">
+          {suppliers.map(s => (
+            <button key={s.id} className="secondary" onClick={() => renameSupplier(s.id, s.name)}><Edit3 size={16}/>{s.name}</button>
+          ))}
         </div>
       </section>
     </>
